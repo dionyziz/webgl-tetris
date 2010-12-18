@@ -1,0 +1,519 @@
+<html>
+    <head>
+        <title>Tetris in WebGL</title>
+        <style type="text/css">
+            body {
+                margin: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <script type="text/javascript" src="engine/jquery-1.4.4.min.js"></script>
+        <script type="text/javascript" src="engine/glMatrix.js"></script>
+        <script type="text/javascript" src="engine/engine.js"></script>
+        
+        <script type="text/javascript">
+            var COLS = 10;
+            var ROWS = 20;
+            
+            // 20x10 array with whatever has been drawn on the scene
+            // including current shape
+            var graphicWorld = [];
+            // cube instances to be used by the drawing engine
+            var graphicBlocks = [];
+            // 20x10 array with the current world state
+            // excluding current shape
+            var world = [];
+            var numFrames = 0; // FPS counter
+            var shapes = [
+                [ 0, 0, 0, 0,
+                  1, 1, 1, 1 ],
+                [ 1, 0, 0, 0,
+                  1, 1, 1, 0 ],
+                [ 0, 0, 1, 0,
+                  1, 1, 1, 0 ],
+                [ 0, 1, 1, 0,
+                  0, 1, 1, 0 ],
+                [ 0, 1, 1, 0,
+                  1, 1, 0, 0 ],
+                [ 0, 1, 0, 0,
+                  1, 1, 1, 0 ],
+                [ 1, 1, 0, 0,
+                  0, 1, 1, 0 ]
+            ];
+            var colors = [
+                [ 0, 1, 1, 1 ],
+                [ 0, 0, 1, 1 ],
+                [ 1, 0.5, 0, 1 ],
+                [ 1, 1, 0, 1 ],
+                [ 0, 1, 0, 1 ],
+                [ 1, 0, 1, 1 ],
+                [ 1, 0, 0, 1 ]
+            ];
+            var currentShapeId; // 0 ... shapes.length
+            var currentShapeRotation; // 0, 1, 2, 3
+            var currentShape = [
+                0, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 1, 1, 1,
+                0, 0, 0, 0
+            ]; // 4x4 array
+            var currentPosition = [ 0, 0 ];
+            
+            function getRotatedShape( source, times ) {
+                var newShape = [];
+                
+                if ( typeof times == 'undefined' ) {
+                    times = 1;
+                }
+                
+                for ( var i = 0; i < times; ++i ) {
+                    for ( var x = 0; x < 4; ++x ) {
+                        for ( var y = 0; y < 4; ++y ) {
+                            newShape[ y * 4 + x ] = source[ ( 3 - x ) * 4 + y ];
+                        }
+                    }
+                    source = [];
+                    Array.prototype.push.apply( source, newShape );
+                }
+                
+                return source;
+            }
+            
+            function rotate() {
+                var newShape = getRotatedShape( currentShape );
+                
+                // check if new shape is possible
+                for ( var x = 0; x < 4; ++x ) {
+                    for ( var y = 0; y < 4; ++y ) {
+                        if ( newShape[ y * 4 + x ] != 0 ) {
+                            if ( world[ ( y + currentPosition[ 1 ] ) * COLS + x + currentPosition[ 0 ] ] ) {
+                                // collision with other shape during rotation
+                                return;
+                            }
+                            if ( x + currentPosition[ 0 ] >= COLS ) {
+                                // off the right of the grid due to rotation
+                                if ( moveLeft() ) {
+                                    rotate();
+                                }
+                                return;
+                            }
+                            if ( x + currentPosition[ 0 ] <= 0 ) {
+                                // off the left of the grid due to rotation
+                                if ( moveRight() ) {
+                                    rotate();
+                                }
+                                return;
+                            }
+                            if ( y + currentPosition[ 1 ] >= ROWS ) {
+                                // off the bottom of the grid due to rotation
+                                return;
+                            }
+                            if ( y + currentPosition[ 1 ] <= 0 ) {
+                                // off the top of the grid due to rotation
+                                if ( moveDown() ) {
+                                    rotate();
+                                }
+                                return;
+                            }
+                        }
+                    }
+                }
+                currentShape = newShape;
+            }
+            
+            function solidify() {
+                if ( typeof currentShapeId != 'undefined' ) {
+                    for ( var x = 0; x < 4; ++x ) {
+                        for ( var y = 0; y < 4; ++y ) {
+                            if ( currentShape[ 4 * y + x ] ) {
+                                world[
+                                    COLS * ( currentPosition[ 1 ] + y )
+                                    +
+                                    ( currentPosition[ 0 ] + x )
+                                ] = currentShape[ 4 * y + x ];
+                            }
+                        }
+                    }
+                    checkLines();
+                }
+            }
+            
+            function checkLines() {
+                var line;
+                var clear = [];
+                
+                for ( var y = ROWS - 1; y >= 0; --y ) {
+                    line = true;
+                    for ( var x = 0; x < COLS; ++x ) {
+                        if ( world[ COLS * y + x ] == 0 ) {
+                            line = false;
+                            break;
+                        }
+                    }
+                    if ( line ) {
+                        clear.push( y );
+                    }
+                }
+                if ( clear.length ) {
+                    media.play( 'line' );
+                    toClear = clear.length;
+                    for ( var y in clear ) {
+                        line = clear[ y ];
+                        animateLineGone( line, function () {
+                            --toClear;
+                            if ( !toClear ) {
+                                // remove line(s) from game; move all other blocks onto it
+                                var i = 0;
+                                for ( var y in clear ) {
+                                    line = clear[ y ] + i;
+                                    for ( var yy = line; yy >= 0; --yy ) {
+                                        for ( var xx = 0; xx < COLS; ++xx ) {
+                                            if ( yy == 0 ) {
+                                                world[ COLS * yy + xx ] = 0;
+                                            }
+                                            else {
+                                                world[ COLS * yy + xx ] = world[ COLS * ( yy - 1 ) + xx ];
+                                            }
+                                        }
+                                    }
+                                    ++i;
+                                }
+                                resume();
+                            }
+                        } );
+                    }
+                    pause();
+                }
+                else {
+                    media.play( 'drop' );
+                }
+            }
+            function animateLineGone( y, callback ) {
+                var t = 0;
+                var SPEED = 0.3;
+                
+                function animate() {
+                    t += SPEED;
+                    for ( var x = 0; x < COLS; ++x ) {
+                        i = x + COLS * y;
+                        graphicBlocks[ i ].move( +( 9 % 10 ) * 1.1 / 2 - ( i % 10 ) * 1.1, 0, 0 );
+                        graphicBlocks[ i ].rotateY( SPEED );
+                        graphicBlocks[ i ].move( -( 9 % 10 ) * 1.1 / 2 + ( i % 10 ) * 1.1, 0, 0 );
+                    }
+                    if ( t > Math.PI ) {
+                        for ( var x = 0; x < COLS; ++x ) {
+                            i = x + COLS * y;
+                            graphicBlocks[ i ].move( +( 9 % 10 ) * 1.1 / 2 - ( i % 10 ) * 1.1, 0, 0 );
+                            graphicBlocks[ i ].rotateY( -t );
+                            graphicBlocks[ i ].move( -( 9 % 10 ) * 1.1 / 2 + ( i % 10 ) * 1.1, 0, 0 );
+                        }
+                        callback();
+                        draw();
+                    }
+                    else {
+                        setTimeout( arguments.callee, 20 );
+                    }
+                }
+                animate();
+            }
+            
+            function next() {
+                var empty;
+                
+                solidify();
+                currentShapeId = Math.floor( Math.random() * shapes.length );
+                currentShapeRotation = Math.floor( Math.random() * 4 );
+                currentShape = [];
+                currentShape.push( 0, 0, 0, 0 );
+                Array.prototype.push.apply( currentShape, shapes[ currentShapeId ] );
+                currentShape.push( 0, 0, 0, 0 );
+                // console.log( 'Rotation: ' + currentShapeRotation );
+                // console.log( 'Before rotation: ' + currentShape );
+                currentShape = getRotatedShape( currentShape, currentShapeRotation );
+                // console.log( 'After rotation: ' + currentShape );
+                currentPosition[ 1 ] = 0;
+                empty = true;
+                for ( y = 0; y < 4; ++y ) {
+                    for ( x = 0; x < 4; ++x ) {
+                        if ( currentShape[ x + y * 4 ] != 0 ) {
+                            currentShape[ x + y * 4 ] = currentShapeId + 1;
+                            empty = false;
+                        }
+                    }
+                    if ( empty ) {
+                        --currentPosition[ 1 ];
+                    }
+                }
+                currentPosition[ 0 ] = 3;
+            }
+            
+            function arrayCopy( a ) {
+                var b = [];
+                
+                for ( var i = 0; i < a.length; ++i ) {
+                    b.push( a[ i ] );
+                }
+                return b;
+            }
+            
+            function draw() {
+                var prevGraphicWorld = arrayCopy( graphicWorld );
+                var blockLocation;
+                
+                graphicWorld = arrayCopy( world );
+                
+                for ( var x = 0; x < 4; ++x ) {
+                    for ( var y = 0; y < Math.min( 4, ROWS - currentPosition[ 1 ] ); ++y ) {
+                        blockLocation =  COLS * ( currentPosition[ 1 ] + y ) + ( currentPosition[ 0 ] + x );
+                        graphicWorld[ blockLocation ] = Math.max(
+                            currentShape[ 4 * y + x ], graphicWorld[ blockLocation ]
+                        );
+                    }
+                }
+                
+                for ( var i = 0; i < world.length; ++i ) {
+                    if ( prevGraphicWorld[ i ] != graphicWorld[ i ] ) {
+                        if ( graphicWorld[ i ] > 0 && prevGraphicWorld[ i ] == 0 ) {
+                            graphicBlocks[ i ].show();
+                        }
+                        else if ( graphicWorld[ i ] == 0 && prevGraphicWorld[ i ] > 0 ) {
+                            graphicBlocks[ i ].hide();
+                        }
+                        graphicBlocks[ i ].material = {
+                            ambientColor: [ 0, 0, 0, 1 ],
+                            diffuseColor: colors[ graphicWorld[ i ] - 1 ],
+                            specularColor: [ 0, 0, 0, 1 ], // colors[ graphicWorld[ i ] - 1 ],
+                            specularExponent: 20
+                        };
+                    }
+                }
+            }
+            function initWorld() {
+                //Init a WebGL context and return a handle to the canvas element
+                var canvas = engine.init( document.body.offsetWidth, document.body.offsetHeight );
+                //Append the canvas element to the document
+                document.body.appendChild( canvas );
+                
+                //Set the camera location ( x, y, z ) and direction ( pitch, yaw, roll )
+                engine.setCamera( 0, -1, 15, -Math.PI / 12, 0, 0 );
+                
+                engine.setLight( {
+                    position: [ 0, 0, -40, 1 ],
+                    ambientColor: [ 0, 0, 0, 1 ],
+                    diffuseColor: [ 1, 1, 1, 1 ],
+                    specularColor: [ 0, 0, 0, 1 ],
+                    spotDirection: [ 0, 0 , -1 ],
+                    attenuationFactors: [ 1000, 1000, 1000 ],
+                    computeDistanceAttenulation: 0,
+                    spotExponent: 1,
+                    spotCutoffAngle: 180
+                } );
+                
+                var BLOCK_WIDTH = 1.05;
+                
+                // one block
+                var model = new engine.Model( engine.utils.makeParallelepiped( -0.5, -0.5, -0.5, 0.5, 0.5, 0.5 ) );
+                
+                // level area
+                var level = engine.utils.makeParallelepiped( -5.5, 20 * BLOCK_WIDTH, 50, 5.5, -0.5, -60 );
+                level.normals = engine.utils.genNormals( level.vertices, level.indices )
+                for ( i = 0; i < level.normals.length; ++i ) {
+                    level.normals[ i ] = -level.normals[ i ];
+                }
+                var level = new engine.Model( level );
+                new engine.Instance( level );
+                
+                for ( var i = 0; i < ROWS * COLS; ++i ) {
+                    world.push( 0 );
+                    graphicWorld.push( 0 );
+                    graphicBlocks[ i ] = new engine.Instance( model );
+                    graphicBlocks[ i ].move( 0, ROWS - Math.floor( i / 10 ) * BLOCK_WIDTH, -50 );
+                    graphicBlocks[ i ].move( -( 9 % 10 ) * BLOCK_WIDTH / 2 + ( i % 10 ) * BLOCK_WIDTH, 0, 0 );
+                    graphicBlocks[ i ].hide();
+                }
+                
+                setInterval( render, 15 );
+                setInterval( countFPS, 1000 );
+            }
+            
+            function countFPS() {
+                document.title = numFrames + 'fps';
+                numFrames = 0;
+            }
+            
+            var t = 0;
+            
+            function render() {
+                ++numFrames;
+                engine.draw();    
+            }
+            
+            var tick = function () {
+                moveDown();
+            }
+            function moveLeft() {
+                if ( !isXCollision( -1 ) ) {
+                    --currentPosition[ 0 ];
+                    draw();
+                    return true;
+                }
+                return false;
+            }
+            function moveRight() {
+                if ( !isXCollision( 1 ) ) {
+                    ++currentPosition[ 0 ];
+                    draw();
+                    return true;
+                }
+                return false;
+            }
+            function pause() {
+                clearInterval( runGame );
+                runGame = 0;
+            }
+            function resume() {
+                if ( runGame == 0 ) {
+                    runGame = setInterval( tick, 1000 );
+                }
+            }
+            function gameOver() {
+                document.title = 'Game over!';
+                media.stop( 'music' );
+                media.play( 'gameover' );
+                clearInterval( runGame );
+                pause();
+            }
+            function moveDown() {
+                var followingBlock;
+                
+                if ( isYCollision( 1 ) ) {
+                    if ( currentPosition[ 1 ] <= 1 ) {
+                        gameOver();
+                    }
+                    else {
+                        next();
+                    }
+                    draw();
+                    return false;
+                }
+                else {
+                    ++currentPosition[ 1 ];
+                    draw();
+                    return true;
+                }
+            }
+            function isXCollision( xoffset ) {
+                for ( var x = 0; x < 4; ++x ) {
+                    for ( var y = 0; y < 4; ++y ) {
+                        if ( currentShape[ 4 * y + x ] != 0 ) {
+                            if ( x + currentPosition[ 0 ] + xoffset < 0 ) { 
+                                // shape collided with left end
+                                return true;
+                            }
+                            if ( x + currentPosition[ 0 ] + xoffset >= COLS ) {
+                                // shape collided with right end
+                                return true;
+                            }
+                            if (
+                                world[
+                                    COLS * ( y + currentPosition[ 1 ] ) +
+                                    ( x + currentPosition[ 0 ] + xoffset )
+                                ] != 0
+                                ) { // shape collided with another shape on the left or right
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+            function isYCollision( yoffset ) {
+                var followingBlock;
+                
+                // check if the shape can go further down
+                for ( var x = 0; x < 4; ++x ) {
+                    for ( var y = 0; y < 4; ++y ) {
+                        followingBlock = COLS * ( currentPosition[ 1 ] + y + yoffset ) + ( currentPosition[ 0 ] + x );
+                        if ( currentShape[ 4 * y + x ] != 0 ) {
+                            if ( typeof world[ followingBlock ] == 'undefined' ) {
+                                // shape reached bottom
+                                // console.log( 'Reach bottom' );
+                                return true;
+                            }
+                            if ( world[ followingBlock ] != 0 ) {
+                                // shape fell on existing world
+                                // console.log( 'Reach existing world' );
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+            function inputHandler() {
+                if ( runGame == 0 ) {
+                    return;
+                }
+                if ( keys[ KEY_LEFT_ARROW ] ) {
+                    moveLeft();
+                }
+                if ( keys[ KEY_RIGHT_ARROW ] ) {
+                    moveRight();
+                }
+            }
+            function inputOnce( key ) {
+                if ( runGame == 0 ) {
+                    return;
+                }
+                switch ( key ) {
+                    case KEY_UP_ARROW:
+                    case KEY_SPACE:
+                        rotate();
+                        draw();
+                        break;
+                    case KEY_DOWN_ARROW:
+                        while ( moveDown() );
+                        break;
+                }
+            }
+            var media = {
+                play: function ( sample ) {
+                    document.getElementById( 'sound-' + sample ).play();
+                },
+                stop: function ( sample ) {
+                    document.getElementById( 'sound-' + sample ).pause();
+                    document.getElementById( 'sound-' + sample ).currentTime = 0;
+                }
+            };
+            
+            var runGame = 0;
+            
+            initWorld();
+            next();
+            resume();
+            
+            var handleInputs = setInterval( inputHandler, 100 );
+            var keys = {};
+            var KEY_LEFT_ARROW = 37, KEY_UP_ARROW = 38, KEY_RIGHT_ARROW = 39, KEY_DOWN_ARROW = 40, KEY_SPACE = 32;
+            
+            window.onkeydown = function ( e ) {
+                if ( keys[ e.keyCode ] ) {
+                    return;
+                }
+                keys[ e.keyCode ] = true;
+                clearInterval( handleInputs );
+                inputOnce( e.keyCode );
+                inputHandler();
+                handleInputs = setInterval( inputHandler, 100 );
+            };
+            window.onkeyup = function ( e ) {
+                keys[ e.keyCode ] = false;
+            };
+        </script>
+        <audio src="sounds/tetris.ogg" autoplay="autoplay" loop='loop' id='sound-music'></audio> 
+        <audio src="sounds/drop.ogg" id="sound-drop"></audio> 
+        <audio src="sounds/gameover.ogg" id="sound-gameover"></audio> 
+        <audio src="sounds/line.ogg" id="sound-line"></audio> 
+    </body>
+</html>
