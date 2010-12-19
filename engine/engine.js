@@ -19,6 +19,12 @@ var engine = {
     perspectiveMatrix: null,
     currentLight: null,
     pendingOperations: [],
+    log: function( a ) {
+        if( typeof console === 'undefined' ) {
+            return;
+        }
+        console.log( a );
+    },
     AbstractObject: function() {
         this.setTranslation = function( x, y, z ) {
             this.cachedMatrix[ 12 ] = x;
@@ -215,7 +221,7 @@ var engine = {
             var shader = engine.gl.createShader( engine.gl.VERTEX_SHADER );
             engine.gl.shaderSource( shader, source );
             engine.gl.compileShader( shader );
-            console.log( "Vertex Shader compile log:\n" + engine.gl.getShaderInfoLog( shader ) );
+            engine.log( "Vertex Shader compile log:\n" + engine.gl.getShaderInfoLog( shader ) );
             engine.vertexShader = shader;
             engine.makeProgram();
         }
@@ -223,7 +229,7 @@ var engine = {
             var shader = engine.gl.createShader( engine.gl.FRAGMENT_SHADER );
             engine.gl.shaderSource( shader, source );
             engine.gl.compileShader( shader );
-            console.log( "Fragment Shader compile log:\n" + engine.gl.getShaderInfoLog( shader ) );
+            engine.log( "Fragment Shader compile log:\n" + engine.gl.getShaderInfoLog( shader ) );
             engine.fragmentShader = shader;
             engine.makeProgram();
         }
@@ -237,7 +243,7 @@ var engine = {
         engine.gl.attachShader( shaderProgram, engine.vertexShader );
         engine.gl.attachShader( shaderProgram, engine.fragmentShader );
         engine.gl.linkProgram( shaderProgram );
-        console.log( "Program linking log:\n" + engine.gl.getProgramInfoLog( shaderProgram ) );
+        engine.log( "Program linking log:\n" + engine.gl.getProgramInfoLog( shaderProgram ) );
         //Use the program just created for rendering
         engine.gl.useProgram( shaderProgram );
         engine.program = shaderProgram;
@@ -555,5 +561,57 @@ var engine = {
                 indices:  indices
             };
         }
+    },
+    subdivide: function ( model ) {
+        var facePoints = [];
+        var edgePoints = [];
+        var vertexPoints = [];
+        var newVertices = [];
+        var newIndices = [];
+        var vertices = model.vertices;
+        var indices = model.indices;
+        
+        var a, b, c;
+        var facePoint;
+        
+        // calculate face points
+        for ( var i = 0; i < indices.length / 3; ++i ) {
+            a = indices[ 3 * i + 0 ];
+            b = indices[ 3 * i + 1 ];
+            c = indices[ 3 * i + 2 ];
+            facePoint = [
+                ( vertices[ 3 * a + 0 ] + vertices[ 3 * b + 0 ] + vertices[ 3 * c + 0 ] ) / 3,
+                ( vertices[ 3 * a + 1 ] + vertices[ 3 * b + 1 ] + vertices[ 3 * c + 1 ] ) / 3,
+                ( vertices[ 3 * a + 2 ] + vertices[ 3 * b + 2 ] + vertices[ 3 * c + 2 ] ) / 3
+            ];
+            facePoints[ i ] = facePoint;
+        }
+        
+        var edges = {};
+        
+        function pushEdge( side1, side2 ) {
+            if ( typeof edges[ a + '.' + b ] == 'undefined' ) {
+                edges[ a + '.' + b ] = [ i ];
+            }
+            else {
+                edges[ a + '.' + b ].push( i );
+            }
+        }
+        
+        for ( var i = 0; i < indices.length / 3; ++i ) {
+            a = indices[ 3 * i + 0 ];
+            b = indices[ 3 * i + 1 ];
+            c = indices[ 3 * i + 2 ];
+            pushEdge( a, b, 3 * i );
+            pushEdge( b, c, 3 * i );
+            pushEdge( c, a, 3 * i );
+        }
+        
+        // calculate edge points
+        
+        // calculate new vertex points
+        // create new vertices and faces
+        
+        return { vertices: vertices, indices: indices };
     }
 }

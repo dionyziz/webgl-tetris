@@ -1,13 +1,74 @@
+<!DOCTYPE HTML>
 <html>
     <head>
         <title>Tetris in WebGL</title>
         <style type="text/css">
             body {
                 margin: 0;
+                font-family: Futura, "Trebuchet MS", "Lucida Sans", sans-serif;
+            }
+            h1, .error {
+                display: none;
+            }
+            .error {
+                background-color: #600;
+                color: white;
+                padding: 5px;
+                border-bottom: 1px solid #333;
+            }
+            .error a { 
+                color: white;
+                font-weight: bold;
+            }
+            canvas {
+                position: absolute;
+            }
+            .scoreboard {
+                position: absolute;
+                z-index: 2;
+                color: white;
+                right: 10px;
+                text-align: right;
+                font-size: 150%;
+            }
+            .scoreboard p { 
+                font-size: 120%;
             }
         </style>
     </head>
     <body>
+        <h1>Tetris</h1>
+        
+        <div id="missing-webgl" class="error">
+            <p>This game requires <strong>WebGL</strong>. 
+            
+            <p>Get <a href="http://www.chromium.org/getting-involved/dev-channel">Google Chrome 10, Google Chrome 9</a>, or <a href="http://www.mozilla.com/firefox/beta/">Firefox 4</a>.</p>
+            
+            <p>WebGL is not an external plugin like Flash.
+            It just requires a modern browser, unlike the one you are using.
+            It's still an experimental feature.</p>
+        </div>
+        
+        <noscript>
+            <div id="missing-javascript" class="error">
+                <p>This game requires <strong>Javascript</strong>.</p>
+                <p>Get <a href="http://www.chromium.org/getting-involved/dev-channel">Google Chrome 10, Google Chrome 9</a>, or <a href="http://www.mozilla.com/firefox/beta/">Firefox 4</a>.</p>
+                <p>Javascript is enabled by default in all modern browsers. Either
+                get a proper browser, or enable it if you've turned it off.</p>
+            </div>
+        </noscript>
+        
+        <div class="scoreboard">
+            <h2>Level</h2>
+            <p id="level">0</p>
+            
+            <h2>Lines</h2>
+            <p id="lines">0</p>
+            
+            <h2>Score</h2>
+            <p id="score">0</p>
+        </div>
+        
         <script type="text/javascript" src="engine/jquery-1.4.4.min.js"></script>
         <script type="text/javascript" src="engine/glMatrix.js"></script>
         <script type="text/javascript" src="engine/engine.js"></script>
@@ -15,6 +76,11 @@
         <script type="text/javascript">
             var COLS = 10;
             var ROWS = 20;
+            var gameSpeed = 1000;
+            
+            var level = 0;
+            var score = 0;
+            var lines = 0;
             
             // 20x10 array with whatever has been drawn on the scene
             // including current shape
@@ -52,13 +118,17 @@
             ];
             var currentShapeId; // 0 ... shapes.length
             var currentShapeRotation; // 0, 1, 2, 3
-            var currentShape = [
-                0, 0, 0, 0,
-                0, 1, 0, 0,
-                0, 1, 1, 1,
-                0, 0, 0, 0
-            ]; // 4x4 array
+            var nextShapeId;
+            var nextShapeRotation;
+            var currentShape = []; // 4x4 array
+            var nextShape = [];
             var currentPosition = [ 0, 0 ];
+            var nextPreview = [];
+            
+            function addScore( points ) {
+                score += points;
+                document.getElementById( 'score' ).innerHTML = score;
+            }
             
             function getRotatedShape( source, times ) {
                 var newShape = [];
@@ -158,6 +228,29 @@
                 if ( clear.length ) {
                     media.play( 'line' );
                     toClear = clear.length;
+                    switch ( clear.length ) {
+                        case 1:
+                            addScore( 40 * ( level + 1 ) );
+                            break;
+                        case 2:
+                            addScore( 100 * ( level + 1 ) );
+                            break;
+                        case 3:
+                            addScore( 300 * ( level + 1 ) );
+                            break;
+                        case 4:
+                            addScore( 1200 * ( level + 1 ) );
+                            break;
+                    }
+                    lines += clear.length;
+                    document.getElementById( 'lines' ).innerHTML = lines;
+                    if ( level != Math.floor( lines / 10 ) ) {
+                        level = Math.floor( lines / 10 );
+                        document.getElementById( 'level' ).innerHTML = level;
+                        gameSpeed *= 0.9;
+                        pause(); resume();
+                    }
+                    
                     for ( var y in clear ) {
                         line = clear[ y ];
                         animateLineGone( line, function () {
@@ -222,22 +315,28 @@
                 var empty;
                 
                 solidify();
-                currentShapeId = Math.floor( Math.random() * shapes.length );
-                currentShapeRotation = Math.floor( Math.random() * 4 );
-                currentShape = [];
-                currentShape.push( 0, 0, 0, 0 );
-                Array.prototype.push.apply( currentShape, shapes[ currentShapeId ] );
-                currentShape.push( 0, 0, 0, 0 );
-                // console.log( 'Rotation: ' + currentShapeRotation );
-                // console.log( 'Before rotation: ' + currentShape );
-                currentShape = getRotatedShape( currentShape, currentShapeRotation );
-                // console.log( 'After rotation: ' + currentShape );
+                currentShapeId = nextShapeId;
+                nextShapeId = Math.floor( Math.random() * shapes.length );
+                currentShapeRotation = nextShapeRotation;
+                nextShapeRotation = Math.floor( Math.random() * 4 );
+                currentShape = arrayCopy( nextShape );
+                nextShape = [];
+                nextShape.push( 0, 0, 0, 0 );
+                [].push.apply( nextShape, shapes[ nextShapeId ] );
+                nextShape.push( 0, 0, 0, 0 );
+                nextShape = getRotatedShape( nextShape, nextShapeRotation );
                 currentPosition[ 1 ] = 0;
+                for ( y = 0; y < 4; ++y ) {
+                    for ( x = 0; x < 4; ++x ) {
+                        if ( nextShape[ x + y * 4 ] != 0 ) {
+                            nextShape[ x + y * 4 ] = nextShapeId + 1;
+                        }
+                    }
+                }
                 empty = true;
                 for ( y = 0; y < 4; ++y ) {
                     for ( x = 0; x < 4; ++x ) {
                         if ( currentShape[ x + y * 4 ] != 0 ) {
-                            currentShape[ x + y * 4 ] = currentShapeId + 1;
                             empty = false;
                         }
                     }
@@ -246,14 +345,14 @@
                     }
                 }
                 currentPosition[ 0 ] = 3;
+                showNextPreview();
             }
             
             function arrayCopy( a ) {
                 var b = [];
                 
-                for ( var i = 0; i < a.length; ++i ) {
-                    b.push( a[ i ] );
-                }
+                [].push.apply( b, a );
+                
                 return b;
             }
             
@@ -280,18 +379,30 @@
                         else if ( graphicWorld[ i ] == 0 && prevGraphicWorld[ i ] > 0 ) {
                             graphicBlocks[ i ].hide();
                         }
-                        graphicBlocks[ i ].material = {
-                            ambientColor: [ 0, 0, 0, 1 ],
-                            diffuseColor: colors[ graphicWorld[ i ] - 1 ],
-                            specularColor: [ 0, 0, 0, 1 ], // colors[ graphicWorld[ i ] - 1 ],
-                            specularExponent: 20
-                        };
+                        graphicBlocks[ i ].material = materialByIndex( graphicWorld[ i ] );
+                        
                     }
                 }
             }
+            function materialByIndex( idx ) {
+                return {
+                    ambientColor: [ 0, 0, 0, 1 ],
+                    diffuseColor: colors[ idx - 1 ],
+                    specularColor: [ 0.5, 0.5, 0.5, 1 ],
+                    specularExponent: 100
+                };
+            }
             function initWorld() {
                 //Init a WebGL context and return a handle to the canvas element
-                var canvas = engine.init( document.body.offsetWidth, document.body.offsetHeight );
+                try {
+                    var canvas = engine.init( window.innerWidth, window.innerHeight );
+                }
+                catch ( e ) {
+                    alert( e.message );
+                    document.getElementById( 'missing-webgl' ).style.display = '';
+                    return false;
+                }
+                
                 //Append the canvas element to the document
                 document.body.appendChild( canvas );
                 
@@ -299,42 +410,96 @@
                 engine.setCamera( 0, -1, 15, -Math.PI / 12, 0, 0 );
                 
                 engine.setLight( {
-                    position: [ 0, 0, -40, 1 ],
+                    position: [ 0, 2, -40, 1 ],
                     ambientColor: [ 0, 0, 0, 1 ],
                     diffuseColor: [ 1, 1, 1, 1 ],
-                    specularColor: [ 0, 0, 0, 1 ],
+                    specularColor: [ 1, 1, 1, 1 ],
                     spotDirection: [ 0, 0 , -1 ],
                     attenuationFactors: [ 1000, 1000, 1000 ],
                     computeDistanceAttenulation: 0,
-                    spotExponent: 1,
+                    spotExponent: 10,
                     spotCutoffAngle: 180
                 } );
                 
                 var BLOCK_WIDTH = 1.05;
                 
                 // one block
-                var model = new engine.Model( engine.utils.makeParallelepiped( -0.5, -0.5, -0.5, 0.5, 0.5, 0.5 ) );
-                
+                var box = new engine.Model( engine.utils.makeParallelepiped( -0.5, -0.5, -0.5, 0.5, 0.5, 0.5 ) );
+                // var box = new engine.Model( engine.utils.makeSphere( 0.5, 0.025 ) );
                 // level area
-                var level = engine.utils.makeParallelepiped( -5.5, 20 * BLOCK_WIDTH, 50, 5.5, -0.5, -60 );
-                level.normals = engine.utils.genNormals( level.vertices, level.indices )
+                var level = engine.utils.makeParallelepiped(
+                    -9 * BLOCK_WIDTH / 2 - 0.6, ROWS + 0.5, -10,
+                    9 * BLOCK_WIDTH / 2 + 0.6, ROWS * ( 1 - BLOCK_WIDTH ) + 0.4, -100
+                );
+                var border = engine.utils.makeParallelepiped(
+                    -9 * BLOCK_WIDTH / 2 - 0.5, ROWS + 0.5, -49.5,
+                    9 * BLOCK_WIDTH / 2 + 0.5, ROWS * ( 1 - BLOCK_WIDTH ) + 0.5, -50.5
+                );
+
+                // remove front and back sides
+                border.indices.splice( 8 * 3, 3 );
+                border.indices.splice( 8 * 3, 3 );
+                border.indices.splice( 8 * 3, 3 );
+                border.indices.splice( 8 * 3, 3 );
+                
+                level.normals = engine.utils.genNormals( level.vertices, level.indices );
+                border.normals = engine.utils.genNormals( border.vertices, border.indices );
                 for ( i = 0; i < level.normals.length; ++i ) {
                     level.normals[ i ] = -level.normals[ i ];
                 }
+                for ( i = 0; i < border.normals.length; ++i ) {
+                    border.normals[ i ] = -border.normals[ i ];
+                }
+                border.material = {
+                    ambientColor: [ 1, 0, 0, 1 ],
+                    diffuseColor: [ 1, 0, 0, 1 ],
+                    specularColor: [ 1, 0, 0, 1 ],
+                    specularExponent: 20
+                };
+                var border = new engine.Model( border );
                 var level = new engine.Model( level );
                 new engine.Instance( level );
+                new engine.Instance( border );
                 
                 for ( var i = 0; i < ROWS * COLS; ++i ) {
                     world.push( 0 );
                     graphicWorld.push( 0 );
-                    graphicBlocks[ i ] = new engine.Instance( model );
+                    graphicBlocks[ i ] = new engine.Instance( box );
                     graphicBlocks[ i ].move( 0, ROWS - Math.floor( i / 10 ) * BLOCK_WIDTH, -50 );
                     graphicBlocks[ i ].move( -( 9 % 10 ) * BLOCK_WIDTH / 2 + ( i % 10 ) * BLOCK_WIDTH, 0, 0 );
                     graphicBlocks[ i ].hide();
                 }
                 
+                for ( var x = 0; x < 4; ++x ) {
+                    for ( var y = 0; y < 4; ++y ) {
+                        var i = 4 * y + x;
+                        nextPreview[ i ] = new engine.Instance( box );
+                        nextPreview[ i ].move( -4.8, 7 - y * BLOCK_WIDTH, -30 );
+                        nextPreview[ i ].rotateY( Math.PI / 2 );
+                        nextPreview[ i ].move( x * BLOCK_WIDTH, 0, 0 );
+                        nextPreview[ i ].hide();
+                    }
+                }
+                
                 setInterval( render, 15 );
                 setInterval( countFPS, 1000 );
+                
+                return true;
+            }
+            
+            function showNextPreview() {
+                for ( var x = 0; x < 4; ++x ) {
+                    for ( var y = 0; y < 4; ++y ) {
+                        var i = 4 * y + x;
+                        if ( nextShape[ i ] ) {
+                            nextPreview[ i ].material = materialByIndex( nextShape[ i ] );
+                            nextPreview[ i ].show();
+                        }
+                        else {
+                            nextPreview[ i ].hide();
+                        }
+                    }
+                }
             }
             
             function countFPS() {
@@ -353,7 +518,7 @@
                 moveDown();
             }
             function moveLeft() {
-                if ( !isXCollision( -1 ) ) {
+                if ( !collision.checkX( -1 ) ) {
                     --currentPosition[ 0 ];
                     draw();
                     return true;
@@ -361,7 +526,7 @@
                 return false;
             }
             function moveRight() {
-                if ( !isXCollision( 1 ) ) {
+                if ( !collision.checkX( 1 ) ) {
                     ++currentPosition[ 0 ];
                     draw();
                     return true;
@@ -374,7 +539,7 @@
             }
             function resume() {
                 if ( runGame == 0 ) {
-                    runGame = setInterval( tick, 1000 );
+                    runGame = setInterval( tick, gameSpeed );
                 }
             }
             function gameOver() {
@@ -387,7 +552,7 @@
             function moveDown() {
                 var followingBlock;
                 
-                if ( isYCollision( 1 ) ) {
+                if ( collision.checkY( 1 ) ) {
                     if ( currentPosition[ 1 ] <= 1 ) {
                         gameOver();
                     }
@@ -403,62 +568,102 @@
                     return true;
                 }
             }
-            function isXCollision( xoffset ) {
-                for ( var x = 0; x < 4; ++x ) {
-                    for ( var y = 0; y < 4; ++y ) {
-                        if ( currentShape[ 4 * y + x ] != 0 ) {
-                            if ( x + currentPosition[ 0 ] + xoffset < 0 ) { 
-                                // shape collided with left end
-                                return true;
-                            }
-                            if ( x + currentPosition[ 0 ] + xoffset >= COLS ) {
-                                // shape collided with right end
-                                return true;
-                            }
-                            if (
-                                world[
-                                    COLS * ( y + currentPosition[ 1 ] ) +
-                                    ( x + currentPosition[ 0 ] + xoffset )
-                                ] != 0
-                                ) { // shape collided with another shape on the left or right
-                                return true;
+            var collision = {
+                checkX: function( xoffset ) {
+                    for ( var x = 0; x < 4; ++x ) {
+                        for ( var y = 0; y < 4; ++y ) {
+                            if ( currentShape[ 4 * y + x ] != 0 ) {
+                                if ( x + currentPosition[ 0 ] + xoffset < 0 ) { 
+                                    // shape collided with left end
+                                    return true;
+                                }
+                                if ( x + currentPosition[ 0 ] + xoffset >= COLS ) {
+                                    // shape collided with right end
+                                    return true;
+                                }
+                                if (
+                                    world[
+                                        COLS * ( y + currentPosition[ 1 ] ) +
+                                        ( x + currentPosition[ 0 ] + xoffset )
+                                    ] != 0
+                                    ) { // shape collided with another shape on the left or right
+                                    return true;
+                                }
                             }
                         }
                     }
+                    return false;
+                },
+                checkY: function ( yoffset ) {
+                    var followingBlock;
+                    
+                    // check if the shape can go further down
+                    for ( var x = 0; x < 4; ++x ) {
+                        for ( var y = 0; y < 4; ++y ) {
+                            followingBlock = COLS * ( currentPosition[ 1 ] + y + yoffset ) + ( currentPosition[ 0 ] + x );
+                            if ( currentShape[ 4 * y + x ] != 0 ) {
+                                if ( typeof world[ followingBlock ] == 'undefined' ) {
+                                    // shape reached bottom
+                                    // console.log( 'Reach bottom' );
+                                    return true;
+                                }
+                                if ( world[ followingBlock ] != 0 ) {
+                                    // shape fell on existing world
+                                    // console.log( 'Reach existing world' );
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    return false;
                 }
-                return false;
+            };
+            
+            function Tween( start, end, percent ) {
+                return start + ( end - start ) * percent;
             }
-            function isYCollision( yoffset ) {
-                var followingBlock;
+            
+            function flyThrough() {
+                var z = 0;
                 
-                // check if the shape can go further down
-                for ( var x = 0; x < 4; ++x ) {
-                    for ( var y = 0; y < 4; ++y ) {
-                        followingBlock = COLS * ( currentPosition[ 1 ] + y + yoffset ) + ( currentPosition[ 0 ] + x );
-                        if ( currentShape[ 4 * y + x ] != 0 ) {
-                            if ( typeof world[ followingBlock ] == 'undefined' ) {
-                                // shape reached bottom
-                                // console.log( 'Reach bottom' );
-                                return true;
-                            }
-                            if ( world[ followingBlock ] != 0 ) {
-                                // shape fell on existing world
-                                // console.log( 'Reach existing world' );
-                                return true;
-                            }
-                        }
+                function animate() {
+                    var theta;
+                    
+                    z += 0.01;
+                    if ( z >= 1 ) {
+                        z = 1;
                     }
+                    else {
+                        setTimeout( arguments.callee, 20 );
+                    }
+                    theta = ( 1 + Math.sin( z * Math.PI - Math.PI / 2 ) ) / 2;
+                    if ( z < 0.8 ) {
+                        thetaprime = 0;
+                    }
+                    else {
+                        thetaprime = ( 1 + Math.sin( ( 1 / ( 1 - 0.8 ) ) * ( z - 0.8 ) * Math.PI - Math.PI / 2 ) ) / 2;
+                    }
+                    engine.setCamera(
+                        0,
+                        Tween( -1, -1, theta ),
+                        Tween( 15, 15, theta ),
+                        Tween( -Math.PI / 12, -Math.PI / 12, theta ),
+                        Tween( 0, 0, theta ),
+                        Tween( 0, 0, thetaprime )
+                    );
                 }
-                return false;
+                
+                animate();
             }
+            
             function inputHandler() {
                 if ( runGame == 0 ) {
                     return;
                 }
-                if ( keys[ KEY_LEFT_ARROW ] ) {
+                if ( input.keys[ input.KEY_LEFT_ARROW ] ) {
                     moveLeft();
                 }
-                if ( keys[ KEY_RIGHT_ARROW ] ) {
+                if ( input.keys[ input.KEY_RIGHT_ARROW ] ) {
                     moveRight();
                 }
             }
@@ -467,16 +672,52 @@
                     return;
                 }
                 switch ( key ) {
-                    case KEY_UP_ARROW:
-                    case KEY_SPACE:
+                    case input.KEY_UP_ARROW:
+                    case input.KEY_SPACE:
                         rotate();
                         draw();
                         break;
-                    case KEY_DOWN_ARROW:
-                        while ( moveDown() );
+                    case input.KEY_DOWN_ARROW:
+                        while ( moveDown() ) {
+                            addScore( 1 );
+                        }
                         break;
                 }
             }
+            
+            var runGame = 0;
+            
+            initWorld();
+            next(); next();
+            resume();
+            flyThrough();
+            
+            var input = {
+                enable: 0,
+                handle: 0,
+                keys: {},
+                KEY_LEFT_ARROW: 37, KEY_UP_ARROW: 38, KEY_RIGHT_ARROW: 39, KEY_DOWN_ARROW: 40, KEY_SPACE: 32,
+                init: function () {
+                    window.onkeydown = function ( e ) {
+                        if ( input.keys[ e.keyCode ] ) {
+                            return;
+                        }
+                        input.keys[ e.keyCode ] = true;
+                        inputOnce( e.keyCode );
+                        inputHandler();
+                        clearInterval( input.handle );
+                        clearTimeout( input.enable );
+                        input.enable = setTimeout( function () {
+                            input.handle = setInterval( inputHandler, 30 );
+                        }, 200 );
+                    };
+                    window.onkeyup = function ( e ) {
+                        input.keys[ e.keyCode ] = false;
+                    };
+                }
+            };
+            input.init();
+            
             var media = {
                 play: function ( sample ) {
                     document.getElementById( 'sound-' + sample ).play();
@@ -485,30 +726,6 @@
                     document.getElementById( 'sound-' + sample ).pause();
                     document.getElementById( 'sound-' + sample ).currentTime = 0;
                 }
-            };
-            
-            var runGame = 0;
-            
-            initWorld();
-            next();
-            resume();
-            
-            var handleInputs = setInterval( inputHandler, 100 );
-            var keys = {};
-            var KEY_LEFT_ARROW = 37, KEY_UP_ARROW = 38, KEY_RIGHT_ARROW = 39, KEY_DOWN_ARROW = 40, KEY_SPACE = 32;
-            
-            window.onkeydown = function ( e ) {
-                if ( keys[ e.keyCode ] ) {
-                    return;
-                }
-                keys[ e.keyCode ] = true;
-                clearInterval( handleInputs );
-                inputOnce( e.keyCode );
-                inputHandler();
-                handleInputs = setInterval( inputHandler, 100 );
-            };
-            window.onkeyup = function ( e ) {
-                keys[ e.keyCode ] = false;
             };
         </script>
         <audio src="sounds/tetris.ogg" autoplay="autoplay" loop='loop' id='sound-music'></audio> 
