@@ -76,12 +76,14 @@
         <script type="text/javascript">
             var COLS = 10;
             var ROWS = 20;
+            var VISIBLE_ROWS = ROWS;
             var gameSpeed = 1000;
             
             var level = 0;
             var score = 0;
             var lines = 0;
             
+            var levelBox;
             // 20x10 array with whatever has been drawn on the scene
             // including current shape
             var graphicWorld = [];
@@ -124,6 +126,7 @@
             var nextShape = [];
             var currentPosition = [ 0, 0 ];
             var nextPreview = [];
+            var bag = [];
             
             function addScore( points ) {
                 score += points;
@@ -246,6 +249,13 @@
                     document.getElementById( 'lines' ).innerHTML = lines;
                     if ( level != Math.floor( lines / 10 ) ) {
                         level = Math.floor( lines / 10 );
+                        levelBox.material = {
+                            ambientColor: [ 0.3 * level % colors.length, 0.3 * level % colors.length, 0.3 * level % colors.length, 1 ],
+                            diffuseColor: colors[ level % colors.length ],
+                            specularColor: [ 0.2, 0.2, 0.2, 1 ],
+                            specularExponent: 100
+                        };
+                        
                         document.getElementById( 'level' ).innerHTML = level;
                         gameSpeed *= 0.9;
                         pause(); resume();
@@ -290,16 +300,16 @@
                     t += SPEED;
                     for ( var x = 0; x < COLS; ++x ) {
                         i = x + COLS * y;
-                        graphicBlocks[ i ].move( +( 9 % 10 ) * 1.1 / 2 - ( i % 10 ) * 1.1, 0, 0 );
+                        graphicBlocks[ i ].move( +( 9 % COLS ) * 1.1 / 2 - ( i % COLS ) * 1.1, 0, 0 );
                         graphicBlocks[ i ].rotateY( SPEED );
-                        graphicBlocks[ i ].move( -( 9 % 10 ) * 1.1 / 2 + ( i % 10 ) * 1.1, 0, 0 );
+                        graphicBlocks[ i ].move( -( 9 % COLS ) * 1.1 / 2 + ( i % COLS ) * 1.1, 0, 0 );
                     }
                     if ( t > Math.PI ) {
                         for ( var x = 0; x < COLS; ++x ) {
                             i = x + COLS * y;
-                            graphicBlocks[ i ].move( +( 9 % 10 ) * 1.1 / 2 - ( i % 10 ) * 1.1, 0, 0 );
+                            graphicBlocks[ i ].move( +( 9 % COLS ) * 1.1 / 2 - ( i % COLS ) * 1.1, 0, 0 );
                             graphicBlocks[ i ].rotateY( -t );
-                            graphicBlocks[ i ].move( -( 9 % 10 ) * 1.1 / 2 + ( i % 10 ) * 1.1, 0, 0 );
+                            graphicBlocks[ i ].move( -( 9 % COLS ) * 1.1 / 2 + ( i % COLS ) * 1.1, 0, 0 );
                         }
                         callback();
                         draw();
@@ -311,12 +321,28 @@
                 animate();
             }
             
+            function shuffle( a ) {
+                var s = arrayCopy( a );
+                var t = [];
+                
+                while ( s.length ) {
+                    t.push( s.splice( Math.random() * s.length, 1 )[ 0 ] );
+                }
+
+                return t;
+            }
+            
             function next() {
                 var empty;
                 
+                if ( bag.length == 0 ) {
+                    // generate a bag
+                    bag = shuffle( [ 0, 1, 2, 3, 4, 5, 6 ] );
+                }
+                
                 solidify();
                 currentShapeId = nextShapeId;
-                nextShapeId = Math.floor( Math.random() * shapes.length );
+                nextShapeId = bag.pop();
                 currentShapeRotation = nextShapeRotation;
                 nextShapeRotation = Math.floor( Math.random() * 4 );
                 currentShape = arrayCopy( nextShape );
@@ -427,13 +453,13 @@
                 var box = new engine.Model( engine.utils.makeParallelepiped( -0.5, -0.5, -0.5, 0.5, 0.5, 0.5 ) );
                 // var box = new engine.Model( engine.utils.makeSphere( 0.5, 0.025 ) );
                 // level area
-                var level = engine.utils.makeParallelepiped(
-                    -9 * BLOCK_WIDTH / 2 - 0.6, ROWS + 0.5, -10,
-                    9 * BLOCK_WIDTH / 2 + 0.6, ROWS * ( 1 - BLOCK_WIDTH ) + 0.4, -100
+                levelBox = engine.utils.makeParallelepiped(
+                    -9 * BLOCK_WIDTH / 2 - 0.6, VISIBLE_ROWS + 0.5, -10,
+                    9 * BLOCK_WIDTH / 2 + 0.6, VISIBLE_ROWS * ( 1 - BLOCK_WIDTH ) + 0.4, -100
                 );
                 var border = engine.utils.makeParallelepiped(
-                    -9 * BLOCK_WIDTH / 2 - 0.5, ROWS + 0.5, -49.5,
-                    9 * BLOCK_WIDTH / 2 + 0.5, ROWS * ( 1 - BLOCK_WIDTH ) + 0.5, -50.5
+                    -9 * BLOCK_WIDTH / 2 - 0.5, VISIBLE_ROWS + 0.5, -49.5,
+                    9 * BLOCK_WIDTH / 2 + 0.5, VISIBLE_ROWS * ( 1 - BLOCK_WIDTH ) + 0.5, -50.5
                 );
 
                 // remove front and back sides
@@ -442,10 +468,10 @@
                 border.indices.splice( 8 * 3, 3 );
                 border.indices.splice( 8 * 3, 3 );
                 
-                level.normals = engine.utils.genNormals( level.vertices, level.indices );
+                levelBox.normals = engine.utils.genNormals( levelBox.vertices, levelBox.indices );
                 border.normals = engine.utils.genNormals( border.vertices, border.indices );
-                for ( i = 0; i < level.normals.length; ++i ) {
-                    level.normals[ i ] = -level.normals[ i ];
+                for ( i = 0; i < levelBox.normals.length; ++i ) {
+                    levelBox.normals[ i ] = -levelBox.normals[ i ];
                 }
                 for ( i = 0; i < border.normals.length; ++i ) {
                     border.normals[ i ] = -border.normals[ i ];
@@ -457,16 +483,16 @@
                     specularExponent: 20
                 };
                 var border = new engine.Model( border );
-                var level = new engine.Model( level );
-                new engine.Instance( level );
+                levelBox = new engine.Model( levelBox );
+                levelBox = new engine.Instance( levelBox );
                 new engine.Instance( border );
                 
                 for ( var i = 0; i < ROWS * COLS; ++i ) {
                     world.push( 0 );
                     graphicWorld.push( 0 );
                     graphicBlocks[ i ] = new engine.Instance( box );
-                    graphicBlocks[ i ].move( 0, ROWS - Math.floor( i / 10 ) * BLOCK_WIDTH, -50 );
-                    graphicBlocks[ i ].move( -( 9 % 10 ) * BLOCK_WIDTH / 2 + ( i % 10 ) * BLOCK_WIDTH, 0, 0 );
+                    graphicBlocks[ i ].move( 0, ROWS - Math.floor( i / COLS) * BLOCK_WIDTH, -50 );
+                    graphicBlocks[ i ].move( -( 9 % COLS ) * BLOCK_WIDTH / 2 + ( i % COLS ) * BLOCK_WIDTH, 0, 0 );
                     graphicBlocks[ i ].hide();
                 }
                 
@@ -547,13 +573,14 @@
                 media.stop( 'music' );
                 media.play( 'gameover' );
                 clearInterval( runGame );
+                draw();
                 pause();
             }
             function moveDown() {
                 var followingBlock;
                 
                 if ( collision.checkY( 1 ) ) {
-                    if ( currentPosition[ 1 ] <= 1 ) {
+                    if ( currentPosition[ 1 ] <= 0 ) {
                         gameOver();
                     }
                     else {
@@ -678,7 +705,8 @@
                         draw();
                         break;
                     case input.KEY_DOWN_ARROW:
-                        while ( moveDown() ) {
+                        while ( !collision.checkY( 1 ) ) {
+                            moveDown();
                             addScore( 1 );
                         }
                         break;
