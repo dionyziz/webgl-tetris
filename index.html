@@ -293,9 +293,6 @@
                     }
                     pause();
                 }
-                else {
-                    media.play( 'drop' );
-                }
             }
             function animateLineGone( y, callback ) {
                 var t = 0;
@@ -605,6 +602,7 @@
                     moveDown();
                     addScore( 1 );
                 }
+                media.play( 'drop' );
             }
             var collision = {
                 checkX: function( xoffset ) {
