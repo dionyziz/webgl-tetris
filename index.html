@@ -73,6 +73,9 @@
         <script type="text/javascript" src="engine/glMatrix.js"></script>
         <script type="text/javascript" src="engine/engine.js"></script>
         
+        <script type="text/javascript" src="game/input.js"></script>
+        <script type="text/javascript" src="game/media.js"></script>
+        
         <script type="text/javascript">
             var COLS = 10;
             var ROWS = 20;
@@ -193,6 +196,7 @@
                     }
                 }
                 currentShape = newShape;
+                draw();
             }
             
             function solidify() {
@@ -249,10 +253,11 @@
                     document.getElementById( 'lines' ).innerHTML = lines;
                     if ( level != Math.floor( lines / 10 ) ) {
                         level = Math.floor( lines / 10 );
+                        var levelColor = colors[ level % colors.length ];
                         levelBox.material = {
-                            ambientColor: [ 0.3 * level % colors.length, 0.3 * level % colors.length, 0.3 * level % colors.length, 1 ],
-                            diffuseColor: colors[ level % colors.length ],
-                            specularColor: [ 0.2, 0.2, 0.2, 1 ],
+                            ambientColor: [ 1 * levelColor[ 0 ], 1 * levelColor[ 1 ], 1 * levelColor[ 2 ], 1 ],
+                            diffuseColor: [ 1, 1, 1, 1 ],
+                            specularColor: [ 0, 0, 0, 1 ],
                             specularExponent: 100
                         };
                         
@@ -437,7 +442,7 @@
                 
                 engine.setLight( {
                     position: [ 0, 2, -40, 1 ],
-                    ambientColor: [ 0, 0, 0, 1 ],
+                    ambientColor: [ 0.1, 0.1, 0.1, 1 ],
                     diffuseColor: [ 1, 1, 1, 1 ],
                     specularColor: [ 1, 1, 1, 1 ],
                     spotDirection: [ 0, 0 , -1 ],
@@ -595,6 +600,12 @@
                     return true;
                 }
             }
+            function hardDrop() {
+                while ( !collision.checkY( 1 ) ) {
+                    moveDown();
+                    addScore( 1 );
+                }
+            }
             var collision = {
                 checkX: function( xoffset ) {
                     for ( var x = 0; x < 4; ++x ) {
@@ -646,115 +657,17 @@
                 }
             };
             
-            function Tween( start, end, percent ) {
-                return start + ( end - start ) * percent;
-            }
-            
-            function flyThrough() {
-                var z = 0;
-                
-                function animate() {
-                    var theta;
-                    
-                    z += 0.01;
-                    if ( z >= 1 ) {
-                        z = 1;
-                    }
-                    else {
-                        setTimeout( arguments.callee, 20 );
-                    }
-                    theta = ( 1 + Math.sin( z * Math.PI - Math.PI / 2 ) ) / 2;
-                    if ( z < 0.8 ) {
-                        thetaprime = 0;
-                    }
-                    else {
-                        thetaprime = ( 1 + Math.sin( ( 1 / ( 1 - 0.8 ) ) * ( z - 0.8 ) * Math.PI - Math.PI / 2 ) ) / 2;
-                    }
-                    engine.setCamera(
-                        0,
-                        Tween( -1, -1, theta ),
-                        Tween( 15, 15, theta ),
-                        Tween( -Math.PI / 12, -Math.PI / 12, theta ),
-                        Tween( 0, 0, theta ),
-                        Tween( 0, 0, thetaprime )
-                    );
-                }
-                
-                animate();
-            }
-            
-            function inputHandler() {
-                if ( runGame == 0 ) {
-                    return;
-                }
-                if ( input.keys[ input.KEY_LEFT_ARROW ] ) {
-                    moveLeft();
-                }
-                if ( input.keys[ input.KEY_RIGHT_ARROW ] ) {
-                    moveRight();
-                }
-            }
-            function inputOnce( key ) {
-                if ( runGame == 0 ) {
-                    return;
-                }
-                switch ( key ) {
-                    case input.KEY_UP_ARROW:
-                    case input.KEY_SPACE:
-                        rotate();
-                        draw();
-                        break;
-                    case input.KEY_DOWN_ARROW:
-                        while ( !collision.checkY( 1 ) ) {
-                            moveDown();
-                            addScore( 1 );
-                        }
-                        break;
-                }
-            }
-            
             var runGame = 0;
+            
+            input.registerHandler( input.KEY_LEFT_ARROW, moveLeft, true );
+            input.registerHandler( input.KEY_RIGHT_ARROW, moveRight, true );
+            input.registerHandler( input.KEY_UP_ARROW, rotate );
+            input.registerHandler( input.KEY_SPACE_ARROW, rotate );
+            input.registerHandler( input.KEY_DOWN_ARROW, hardDrop );
             
             initWorld();
             next(); next();
             resume();
-            flyThrough();
-            
-            var input = {
-                enable: 0,
-                handle: 0,
-                keys: {},
-                KEY_LEFT_ARROW: 37, KEY_UP_ARROW: 38, KEY_RIGHT_ARROW: 39, KEY_DOWN_ARROW: 40, KEY_SPACE: 32,
-                init: function () {
-                    window.onkeydown = function ( e ) {
-                        if ( input.keys[ e.keyCode ] ) {
-                            return;
-                        }
-                        input.keys[ e.keyCode ] = true;
-                        inputOnce( e.keyCode );
-                        inputHandler();
-                        clearInterval( input.handle );
-                        clearTimeout( input.enable );
-                        input.enable = setTimeout( function () {
-                            input.handle = setInterval( inputHandler, 30 );
-                        }, 200 );
-                    };
-                    window.onkeyup = function ( e ) {
-                        input.keys[ e.keyCode ] = false;
-                    };
-                }
-            };
-            input.init();
-            
-            var media = {
-                play: function ( sample ) {
-                    document.getElementById( 'sound-' + sample ).play();
-                },
-                stop: function ( sample ) {
-                    document.getElementById( 'sound-' + sample ).pause();
-                    document.getElementById( 'sound-' + sample ).currentTime = 0;
-                }
-            };
         </script>
         <audio src="sounds/tetris.ogg" autoplay="autoplay" loop='loop' id='sound-music'></audio> 
         <audio src="sounds/drop.ogg" id="sound-drop"></audio> 
