@@ -16,30 +16,32 @@ var render = {
         [ 1, 0, 1, 1 ],
         [ 1, 0, 0, 1 ]
     ],
-    animateLineGone: function( y, callback ) {
+    animateLinesGone: function( lines ) {
         var t = 0;
         var SPEED = 0.3;
         
         function animate() {
             t += SPEED;
-            for ( var x = 0; x < tetris.COLS; ++x ) {
-                i = x + tetris.COLS * y;
-                render.graphicBlocks[ i ].move( +( 9 % tetris.COLS ) * 1.1 / 2 - ( i % tetris.COLS ) * 1.1, 0, 0 );
-                render.graphicBlocks[ i ].rotateY( SPEED );
-                render.graphicBlocks[ i ].move( -( 9 % tetris.COLS ) * 1.1 / 2 + ( i % tetris.COLS ) * 1.1, 0, 0 );
-            }
-            if ( t > Math.PI ) {
+            for ( var j in lines ) {
+                var y = lines[ j ];
                 for ( var x = 0; x < tetris.COLS; ++x ) {
                     i = x + tetris.COLS * y;
                     render.graphicBlocks[ i ].move( +( 9 % tetris.COLS ) * 1.1 / 2 - ( i % tetris.COLS ) * 1.1, 0, 0 );
-                    render.graphicBlocks[ i ].rotateY( -t );
+                    render.graphicBlocks[ i ].rotateY( SPEED );
                     render.graphicBlocks[ i ].move( -( 9 % tetris.COLS ) * 1.1 / 2 + ( i % tetris.COLS ) * 1.1, 0, 0 );
                 }
-                callback();
-                render.draw();
-            }
-            else {
-                setTimeout( arguments.callee, 20 );
+                if ( t > Math.PI ) {
+                    for ( var x = 0; x < tetris.COLS; ++x ) {
+                        i = x + tetris.COLS * y;
+                        render.graphicBlocks[ i ].move( +( 9 % tetris.COLS ) * 1.1 / 2 - ( i % tetris.COLS ) * 1.1, 0, 0 );
+                        render.graphicBlocks[ i ].rotateY( -t );
+                        render.graphicBlocks[ i ].move( -( 9 % tetris.COLS ) * 1.1 / 2 + ( i % tetris.COLS ) * 1.1, 0, 0 );
+                    }
+                    render.draw();
+                }
+                else {
+                    setTimeout( arguments.callee, 20 );
+                }
             }
         }
         animate();
@@ -200,10 +202,10 @@ var render = {
         render.initEngine();
         render.initGeometry();
         
-        tetris.addEventListener( 'lineschange', render.displayLines );
-        tetris.addEventListener( 'scorechange', render.displayScore );
-        tetris.addEventListener( 'levelchange', render.displayLevel );
-        
+        tetris.addListener( 'lineschange', render.displayLines );
+        tetris.addListener( 'scorechange', render.displayScore );
+        tetris.addListener( 'levelchange', render.displayLevel );
+        tetris.addListener( 'clearlines',  render.animateLinesGone );
         setInterval( render.perform, 15 );
         setInterval( render.countFPS, 1000 );
         

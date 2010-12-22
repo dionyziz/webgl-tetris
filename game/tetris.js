@@ -136,16 +136,11 @@ var tetris = {
             tetris.pause(); tetris.resume();
         }
         
-        for ( var y in clear ) {
-            line = clear[ y ];
-            render.animateLineGone( line, function () {
-                --toClear;
-                if ( !toClear ) {
-                    tetris.removeLines( clear );
-                    tetris.resume();
-                }
-            } );
-        }
+        tetris.onclearlines( clear );
+        setTimeout( function () {
+            tetris.removeLines( clear );
+            tetris.resume();
+        }, 100 );
         tetris.pause();
     },
     removeLines: function ( clear ) {
@@ -192,6 +187,7 @@ var tetris = {
         eventDriven.create( this, 'lineschange' );
         eventDriven.create( this, 'levelchange' );
         eventDriven.create( this, 'scorechange' );
+        eventDriven.create( this, 'clearlines' );
         
         if ( !render.init() ) {
             return;
