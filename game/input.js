@@ -1,3 +1,7 @@
+/*
+ * Developer: Dionysis "dionyziz" Zindros <dionyziz@gmail.com>
+ */
+
 var input = {
     enable: 0,
     handle: 0,

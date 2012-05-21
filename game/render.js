@@ -1,3 +1,7 @@
+/*
+ * Developer: Dionysis "dionyziz" Zindros <dionyziz@gmail.com>
+ */
+
 var render = {
     numFrames: 0, // FPS counter
     // 20x10 array with whatever has been drawn on the scene

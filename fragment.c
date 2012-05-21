@@ -1,3 +1,6 @@
+/*
+ * Developer: Petros "petrosagg" Aggelatos <petrosagg@gmail.com>
+ */
 precision highp float;
 
 varying vec4 vColor;

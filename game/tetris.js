@@ -1,3 +1,7 @@
+/*
+ * Developer: Dionysis "dionyziz" Zindros <dionyziz@gmail.com>
+ */
+
 var tetris = {
     COLS: 10,
     ROWS: 20,

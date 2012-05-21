@@ -1,3 +1,7 @@
+/*
+ * Developer: Dionysis "dionyziz" Zindros <dionyziz@gmail.com>
+ */
+
 var eventDriven = {
     create: function ( object, eventname ) {
         object[ 'on' + eventname ] = function () {

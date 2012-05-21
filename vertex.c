@@ -1,3 +1,6 @@
+/*
+ * Developer: Petros "petrosagg" Aggelatos <petrosagg@gmail.com>
+ */
 struct spot_light {
     vec4 position; // light position in eye space
     vec4 ambient_color;

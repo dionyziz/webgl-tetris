@@ -1,3 +1,7 @@
+/*
+ * Developer: Petros "petrosagg" Aggelatos <petrosagg@gmail.com>
+ */
+
 var engine = {
     defaults: {
         material: {

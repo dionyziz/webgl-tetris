@@ -1,3 +1,7 @@
+/*
+ * Developer: Dionysis "dionyziz" Zindros <dionyziz@gmail.com>
+ */
+
 function shuffle( a ) {
     var s = arrayCopy( a );
     var t = [];

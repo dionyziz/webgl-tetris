@@ -1,3 +1,7 @@
+/*
+ * Developer: Dionysis "dionyziz" Zindros <dionyziz@gmail.com>
+ */
+
 var media = {
     play: function ( sample ) {
         document.getElementById( 'sound-' + sample ).play();

@@ -1,3 +1,7 @@
+/*
+ * Developer: Dionysis "dionyziz" Zindros <dionyziz@gmail.com>
+ */
+
 var tetromino = { // currently falling tetromino
     id: 0, // 0 ... shapes.length
     rotation: 0, // 0, 1, 2, 3
